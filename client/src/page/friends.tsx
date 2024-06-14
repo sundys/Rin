@@ -61,21 +61,22 @@ export function FriendsPage() {
     const profile = useContext(ProfileContext);
     const [friendsAvailable, setFriendsAvailable] = useState<FriendItem[]>([])
     const [friendsUnavailable, setFriendsUnavailable] = useState<FriendItem[]>([])
-
+    const [status, setStatus] = useState<'idle' | 'loading'>('loading')
     const ref = useRef(false)
     useEffect(() => {
         if (ref.current) return
         client.friend.index.get().then(({ data }) => {
             if (data) {
-                const friends_avaliable = data.friend_list?.filter(({ health }) => health.length === 0) || []
-                shuffleArray(friends_avaliable)
-                setFriendsAvailable(friends_avaliable)
-                const friends_unavaliable = data.friend_list?.filter(({ health }) => health.length > 0) || []
-                shuffleArray(friends_unavaliable)
-                setFriendsUnavailable(friends_unavaliable)
+                const friends_available = data.friend_list?.filter(({ health }) => health.length === 0) || []
+                shuffleArray(friends_available)
+                setFriendsAvailable(friends_available)
+                const friends_unavailable = data.friend_list?.filter(({ health }) => health.length > 0) || []
+                shuffleArray(friends_unavailable)
+                setFriendsUnavailable(friends_unavailable)
                 if (data.apply_list)
                     setApply(data.apply_list)
             }
+            setStatus('idle')
         })
         ref.current = true
     }, [])
@@ -92,7 +93,7 @@ export function FriendsPage() {
             <meta property="og:type" content="article" />
             <meta property="og:url" content={document.URL} />
         </Helmet>
-        <Waiting for={friendsAvailable.length != 0 || friendsUnavailable.length != 0}>
+        <Waiting for={friendsAvailable.length != 0 || friendsUnavailable.length != 0 || status === "idle"}>
             <main className="w-full flex flex-col justify-center items-center mb-8 t-primary">
                 {friendsAvailable.length > 0 &&
                     <>
