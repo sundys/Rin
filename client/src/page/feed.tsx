@@ -1,17 +1,23 @@
-import { format } from "@astroimg/timeago";
 import { useContext, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet";
+import { useTranslation } from "react-i18next";
 import ReactModal from "react-modal";
 import Popup from "reactjs-popup";
-import tocbot from "tocbot";
 import { Link, useLocation } from "wouter";
+import { useAlert, useConfirm } from "../components/dialog";
+import { HashTag } from "../components/hashtag";
 import { Waiting } from "../components/loading";
+import { Markdown } from "../components/markdown";
 import { client } from "../main";
+import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
 import { headersWithAuth } from "../utils/auth";
 import { siteName } from "../utils/constants";
-import { Markdown } from "../components/markdown";
-import { useTranslation } from "react-i18next";
+import { timeago } from "../utils/timeago";
+import { Button } from "../components/button";
+import { Tips } from "../components/tips";
+import { useLoginModal } from "../hooks/useLoginModal";
+import mermaid from "mermaid";
 
 type Feed = {
   id: number;
@@ -29,9 +35,11 @@ type Feed = {
     id: number;
     username: string;
   };
+  pv: number;
+  uv: number;
 };
 
-export function FeedPage({ id }: { id: string }) {
+export function FeedPage({ id, TOC, clean }: { id: string, TOC: () => JSX.Element, clean: (id: string) => void }) {
   const { t } = useTranslation();
   const profile = useContext(ProfileContext);
   const [feed, setFeed] = useState<Feed>();
@@ -39,37 +47,61 @@ export function FeedPage({ id }: { id: string }) {
   const [headImage, setHeadImage] = useState<string>();
   const ref = useRef("");
   const [_, setLocation] = useLocation();
-  const [empty, setEmpty] = useState(true);
+  const { showAlert, AlertUI } = useAlert();
+  const { showConfirm, ConfirmUI } = useConfirm();
+  const [top, setTop] = useState<number>(0);
+  const config = useContext(ClientConfigContext);
+  const counterEnabled = config.get<boolean>('counter.enabled');
   function deleteFeed() {
     // Confirm
-    if (!confirm(t("article.delete.confirm"))) return;
-    if (!feed) return;
-    client
-      .feed({ id: feed.id })
-      .delete(null, {
-        headers: headersWithAuth(),
+    showConfirm(
+      t("article.delete.title"),
+      t("article.delete.confirm"),
+      () => {
+        if (!feed) return;
+        client
+          .feed({ id: feed.id })
+          .delete(null, {
+            headers: headersWithAuth(),
+          })
+          .then(({ error }) => {
+            if (error) {
+              showAlert(error.value as string);
+            } else {
+              showAlert(t("delete.success"));
+              setLocation("/");
+            }
+          });
       })
-      .then(({ error }) => {
-        if (error) {
-          alert(error.value);
-        } else {
-          alert(t("delete.success"));
-          setLocation("/");
-        }
-      });
+  }
+  function topFeed() {
+    const isUnTop = !(top > 0)
+    const topNew = isUnTop ? 1 : 0;
+    // Confirm
+    showConfirm(
+      isUnTop ? t("article.top.title") : t("article.untop.title"),
+      isUnTop ? t("article.top.confirm") : t("article.untop.confirm"),
+      () => {
+        if (!feed) return;
+        client
+          .feed.top({ id: feed.id })
+          .post({
+            top: topNew,
+          }, {
+            headers: headersWithAuth(),
+          })
+          .then(({ error }) => {
+            if (error) {
+              showAlert(error.value as string);
+            } else {
+              showAlert(isUnTop ? t("article.top.success") : t("article.untop.success"));
+              setTop(topNew);
+            }
+          });
+      })
   }
   useEffect(() => {
     if (ref.current == id) return;
-    tocbot.init({
-      tocSelector: ".toc",
-      contentSelector: ".toc-content",
-      headingSelector: "h1, h2, h3, h4, h5, h6",
-      collapseDepth: 2,
-      headingLabelCallback(headingLabel) {
-        setEmpty(false);
-        return headingLabel;
-      },
-    });
     setFeed(undefined);
     setError(undefined);
     setHeadImage(undefined);
@@ -84,21 +116,39 @@ export function FeedPage({ id }: { id: string }) {
         } else if (data && typeof data !== "string") {
           setTimeout(() => {
             setFeed(data);
+            setTop(data.top);
             // Extract head image
             const img_reg = /!\[.*?\]\((.*?)\)/;
             const img_match = img_reg.exec(data.content);
             if (img_match) {
               setHeadImage(img_match[1]);
             }
-            setTimeout(() => {
-              // Refresh toc
-              tocbot.refresh();
-            }, 0);
+            clean(id);
           }, 0);
         }
       });
     ref.current = id;
   }, [id]);
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: "default",
+    });
+    mermaid.run({
+      suppressErrors: true,
+      nodes: document.querySelectorAll("pre.mermaid_default")
+    }).then(()=>{
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+      });
+      mermaid.run({
+        suppressErrors: true,
+        nodes: document.querySelectorAll("pre.mermaid_dark")
+      });
+    })
+  }, [feed]);
+
   return (
     <Waiting for={feed || error}>
       {feed && (
@@ -135,14 +185,15 @@ export function FeedPage({ id }: { id: string }) {
       <div className="w-full flex flex-row justify-center ani-show">
         {error && (
           <>
-            <div className="flex flex-col wauto rounded-2xl bg-w m-2 p-6 items-center justify-center">
+            <div className="flex flex-col wauto rounded-2xl bg-w m-2 p-6 items-center justify-center space-y-2">
               <h1 className="text-xl font-bold t-primary">{error}</h1>
-              <button
-                className="mt-2 bg-theme text-white px-4 py-2 rounded-full"
+              {error === "Not found" && id === "about" && (
+                <Tips value={t("about.notfound")} />
+              )}
+              <Button
+                title={t("index.back")}
                 onClick={() => (window.location.href = "/")}
-              >
-                {t("index.back")}
-              </button>
+              />
             </div>
           </>
         )}
@@ -152,7 +203,7 @@ export function FeedPage({ id }: { id: string }) {
             <main className="wauto">
               <article
                 className="rounded-2xl bg-w m-2 px-6 py-4"
-                aria-label="正文"
+                aria-label={feed.title ?? "Unnamed"}
               >
                 <div className="flex justify-between">
                   <div>
@@ -162,7 +213,7 @@ export function FeedPage({ id }: { id: string }) {
                         title={new Date(feed.createdAt).toLocaleString()}
                       >
                         {t("feed_card.published$time", {
-                          time: format(feed.createdAt),
+                          time: timeago(feed.createdAt),
                         })}
                       </p>
 
@@ -172,13 +223,24 @@ export function FeedPage({ id }: { id: string }) {
                           title={new Date(feed.updatedAt).toLocaleString()}
                         >
                           {t("feed_card.updated$time", {
-                            time: format(feed.updatedAt),
+                            time: timeago(feed.updatedAt),
                           })}
                         </p>
                       )}
                     </div>
+                    {counterEnabled && <p className='text-[12px] text-gray-400 font-normal link-line'>
+                      <span> {t("count.pv")} </span>
+                      <span>
+                        {feed.pv}
+                      </span>
+                      <span> |</span>
+                      <span> {t("count.uv")} </span>
+                      <span>
+                        {feed.uv}
+                      </span>
+                    </p>}
                     <div className="flex flex-row items-center">
-                      <h1 className="text-2xl font-bold t-primary">
+                      <h1 className="text-2xl font-bold t-primary break-all">
                         {feed.title}
                       </h1>
                       <div className="flex-1 w-0" />
@@ -187,17 +249,24 @@ export function FeedPage({ id }: { id: string }) {
                   <div className="pt-2">
                     {profile?.permission && (
                       <div className="flex gap-2">
+                        <button
+                          aria-label={top > 0 ? t("untop.title") : t("top.title")}
+                          onClick={topFeed}
+                          className={`flex-1 flex flex-col items-end justify-center px-2 py rounded-full transition ${top > 0 ? "bg-theme text-white hover:bg-theme-hover active:bg-theme-active" : "bg-secondary bg-button dark:text-neutral-400"}`}
+                        >
+                          <i className="ri-skip-up-line" />
+                        </button>
                         <Link
                           aria-label={t("edit")}
                           href={`/writing/${feed.id}`}
-                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-full transition"
+                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary bg-button rounded-full transition"
                         >
-                          <i className="ri-edit-2-line dark:text-gray-400" />
+                          <i className="ri-edit-2-line dark:text-neutral-400" />
                         </Link>
                         <button
                           aria-label={t("delete.title")}
                           onClick={deleteFeed}
-                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-full transition"
+                          className="flex-1 flex flex-col items-end justify-center px-2 py bg-secondary bg-button rounded-full transition"
                         >
                           <i className="ri-delete-bin-7-line text-red-500" />
                         </button>
@@ -208,14 +277,9 @@ export function FeedPage({ id }: { id: string }) {
                 <Markdown content={feed.content} />
                 <div className="mt-6 flex flex-col gap-2">
                   {feed.hashtags.length > 0 && (
-                    <div className="flex flex-row gap-2">
+                    <div className="flex flex-row flex-wrap gap-x-2">
                       {feed.hashtags.map(({ name }, index) => (
-                        <div className="flex gap-0.5">
-                          <div className="text-sm opacity-70 italic dark:text-gray-300">#</div>
-                          <div key={index} className="text-sm opacity-70 dark:text-gray-300">
-                            {name}
-                          </div>
-                        </div>
+                        <HashTag key={index} name={name} />
                       ))}
                     </div>
                   )}
@@ -232,48 +296,27 @@ export function FeedPage({ id }: { id: string }) {
                   </div>
                 </div>
               </article>
-              {feed && <Comments id={id} />}
+              {feed && <Comments id={`${feed.id}`} />}
               <div className="h-16" />
             </main>
             <div className="w-80 hidden lg:block relative">
-              <TOC empty={empty} />
+              <div
+                className={`ml-2 start-0 end-0 top-[5.5rem] sticky`}
+              >
+                <TOC />
+              </div>
             </div>
           </>
         )}
       </div>
+      <AlertUI />
+      <ConfirmUI />
     </Waiting>
   );
 }
 
-export function TOCHeader() {
+export function TOCHeader({ TOC }: { TOC: () => JSX.Element }) {
   const [isOpened, setIsOpened] = useState(false);
-  const [empty, setEmpty] = useState(true);
-  const { t } = useTranslation();
-
-  useEffect(() => {
-    if (isOpened) {
-      setTimeout(() => {
-        tocbot.init({
-          tocSelector: ".toc2",
-          contentSelector: ".toc-content",
-          headingSelector: "h1, h2, h3, h4, h5, h6",
-          collapseDepth: 2,
-          headingLabelCallback(headingLabel) {
-            setEmpty(false);
-            return headingLabel;
-          },
-        });
-      }, 0);
-    } else {
-      tocbot.destroy();
-    }
-
-    return () => {
-      if (isOpened) {
-        tocbot.destroy();
-      }
-    };
-  }, [isOpened]);
 
   return (
     <div className="lg:hidden">
@@ -300,7 +343,7 @@ export function TOCHeader() {
             flexDirection: "column",
             justifyContent: "center",
             alignItems: "center",
-            background: "white",
+            background: "none",
           },
           overlay: {
             backgroundColor: "rgba(0, 0, 0, 0.5)",
@@ -309,44 +352,10 @@ export function TOCHeader() {
         }}
         onRequestClose={() => setIsOpened(false)}
       >
-        <div className="rounded-2xl bg-w py-4 px-4 fixed w-[80vw] sm:w-[60vw] lg:w-[40vw] overflow-clip relative t-primary">
-          <h1 className="text-xl font-bold">{t("index.title")}</h1>
-          {empty && (
-            <p className="text-gray-400 text-sm mt-2">
-              {t("index.empty.title")}
-            </p>
-          )}
-          <div className="toc toc2 mt-2"></div>
+        <div className="w-[80vw] sm:w-[60vw] lg:w-[40vw] overflow-clip relative t-primary">
+          <TOC />
         </div>
       </ReactModal>
-    </div>
-  );
-}
-
-export function TOC({ empty }: { empty: boolean }) {
-  const { t } = useTranslation();
-  useEffect(() => {
-    tocbot.init({
-      tocSelector: ".toc",
-      contentSelector: ".toc-content",
-      headingSelector: "h1, h2, h3, h4, h5, h6",
-      collapseDepth: 2,
-    });
-
-    return () => {
-      tocbot.destroy();
-    };
-  }, []);
-
-  return (
-    <div
-      className={`ml-2 rounded-2xl bg-w py-4 px-4 fixed start-0 end-0 top-[5.5rem] sticky t-primary`}
-    >
-      <h1 className="text-xl font-bold">{t("index.title")}</h1>
-      {empty && (
-        <p className="text-gray-400 text-sm mt-2">{t("index.empty.title")}</p>
-      )}
-      <div className="toc mt-2"></div>
     </div>
   );
 }
@@ -361,12 +370,19 @@ function CommentInput({
   const { t } = useTranslation();
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
+  const { showAlert, AlertUI } = useAlert();
+  const profile = useContext(ProfileContext);
+  const { LoginModal, setIsOpened } = useLoginModal()
   function errorHumanize(error: string) {
     if (error === "Unauthorized") return t("login.required");
     else if (error === "Content is required") return t("comment.empty");
     return error;
   }
   function submit() {
+    if (!profile) {
+      setIsOpened(true)
+      return;
+    }
     client.feed
       .comment({ feed: id })
       .post(
@@ -381,15 +397,18 @@ function CommentInput({
         } else {
           setContent("");
           setError("");
-          alert(t("comment.success"));
-          onRefresh();
+          showAlert(t("comment.success"), () => {
+            onRefresh();
+          });
         }
       });
   }
   return (
     <div className="w-full rounded-2xl bg-w t-primary m-2 p-6 items-end flex flex-col">
-      <div className="flex flex-col w-full items-start space-y-4">
+      <div className="flex flex-col w-full items-start mb-4">
         <label htmlFor="comment">{t("comment.title")}</label>
+      </div>
+      {profile ? (<>
         <textarea
           id="comment"
           placeholder={t("comment.placeholder.title")}
@@ -397,14 +416,25 @@ function CommentInput({
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
-      </div>
-      <button
-        className="mt-2 bg-theme text-white px-4 py-2 rounded-full"
-        onClick={submit}
-      >
-        {t("comment.submit")}
-      </button>
+        <button
+          className="mt-4 bg-theme text-white px-4 py-2 rounded-full"
+          onClick={submit}
+        >
+          {t("comment.submit")}
+        </button>
+      </>) : (
+        <div className="flex flex-row w-full items-center justify-center space-x-2 py-12">
+          <button
+            className="mt-2 bg-theme text-white px-4 py-2 rounded-full"
+            onClick={() => setIsOpened(true)}
+          >
+            {t("login.required")}
+          </button>
+        </div>
+      )}
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+      <AlertUI />
+      <LoginModal />
     </div>
   );
 }
@@ -487,23 +517,30 @@ function CommentItem({
   comment: Comment;
   onRefresh: () => void;
 }) {
+  const { showConfirm, ConfirmUI } = useConfirm();
+  const { showAlert, AlertUI } = useAlert();
   const { t } = useTranslation();
   const profile = useContext(ProfileContext);
   function deleteComment() {
-    if (!confirm(t("delete.comment.confirm"))) return;
-    client
-      .comment({ id: comment.id })
-      .delete(null, {
-        headers: headersWithAuth(),
+    showConfirm(
+      t("delete.comment.title"),
+      t("delete.comment.confirm"),
+      async () => {
+        client
+          .comment({ id: comment.id })
+          .delete(null, {
+            headers: headersWithAuth(),
+          })
+          .then(({ error }) => {
+            if (error) {
+              showAlert(error.value as string);
+            } else {
+              showAlert(t("delete.success"), () => {
+                onRefresh();
+              });
+            }
+          });
       })
-      .then(({ error }) => {
-        if (error) {
-          alert(error.value);
-        } else {
-          alert(t("delete.success"));
-          onRefresh();
-        }
-      });
   }
   return (
     <div className="flex flex-row items-start rounded-xl mt-2">
@@ -521,7 +558,7 @@ function CommentItem({
             title={new Date(comment.createdAt).toLocaleString()}
             className="text-gray-400 text-sm"
           >
-            {format(comment.createdAt)}
+            {timeago(comment.createdAt)}
           </span>
         </div>
         <p className="t-primary break-words">{comment.content}</p>
@@ -549,6 +586,8 @@ function CommentItem({
           )}
         </div>
       </div>
+      <ConfirmUI />
+      <AlertUI />
     </div>
   );
 }

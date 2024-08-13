@@ -1,16 +1,18 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import i18next from "i18next";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Helmet } from 'react-helmet';
+import { useTranslation } from "react-i18next";
 import Modal from 'react-modal';
 import Select from 'react-select';
+import { ShowAlertType, useAlert, useConfirm } from "../components/dialog";
 import { Input } from "../components/input";
 import { Waiting } from "../components/loading";
 import { client } from "../main";
+import { ClientConfigContext } from "../state/config";
 import { ProfileContext } from "../state/profile";
 import { shuffleArray } from "../utils/array";
 import { headersWithAuth } from "../utils/auth";
 import { siteName } from "../utils/constants";
-import { ClientConfigContext } from "../state/config";
-import { useTranslation } from "react-i18next";
 
 
 type FriendItem = {
@@ -26,7 +28,8 @@ type FriendItem = {
     health: string;
 };
 
-async function publish({ name, avatar, desc, url }: { name: string, avatar: string, desc: string, url: string }) {
+async function publish({ name, avatar, desc, url, showAlert }: { name: string, avatar: string, desc: string, url: string, showAlert: ShowAlertType }) {
+    const t = i18next.t
     const { error } = await client.friend.index.post({
         avatar,
         name,
@@ -36,10 +39,11 @@ async function publish({ name, avatar, desc, url }: { name: string, avatar: stri
         headers: headersWithAuth()
     })
     if (error) {
-        alert(error.value)
+        showAlert(error.value as string)
     } else {
-        alert("创建成功")
-        window.location.reload()
+        showAlert(t('create.success'), () => {
+            window.location.reload()
+        })
     }
 }
 
@@ -58,6 +62,7 @@ export function FriendsPage() {
     const [friendsUnavailable, setFriendsUnavailable] = useState<FriendItem[]>([])
     const [status, setStatus] = useState<'idle' | 'loading'>('loading')
     const ref = useRef(false)
+    const { showAlert, AlertUI } = useAlert()
     useEffect(() => {
         if (ref.current) return
         client.friend.index.get({
@@ -82,7 +87,7 @@ export function FriendsPage() {
         ref.current = true
     }, [])
     function publishButton() {
-        publish({ name, desc, avatar, url })
+        publish({ name, desc, avatar, url, showAlert })
     }
     return (<>
         <Helmet>
@@ -93,15 +98,15 @@ export function FriendsPage() {
             <meta property="og:type" content="article" />
             <meta property="og:url" content={document.URL} />
         </Helmet>
-        <Waiting for={friendsAvailable.length != 0 || friendsUnavailable.length != 0 || status === "idle"}>
-            <main className="w-full flex flex-col justify-center items-center mb-8 t-primary">
+        <Waiting for={friendsAvailable.length !== 0 || friendsUnavailable.length !== 0 || status === "idle"}>
+            <main className="w-full flex flex-col justify-center items-center mb-8 t-primary ani-show">
                 <FriendList title={t('friends.title')} show={friendsAvailable.length > 0} friends={friendsAvailable} />
                 <FriendList title={t('friends.left')} show={friendsUnavailable.length > 0} friends={friendsUnavailable} />
                 <FriendList title={t('friends.review.waiting')} show={waitList.length > 0} friends={waitList} />
                 <FriendList title={t('friends.review.rejected')} show={refusedList.length > 0} friends={refusedList} />
-                <FriendList title={t('friends.my_apply')} show={profile?.permission != true && apply != undefined} friends={apply ? [apply] : []} />
-                {profile && (profile.permission || config.getOrDefault("friend_apply_enable", true)) &&
-                    <div className="wauto t-primary flex text-start text-black text-2xl font-bold mt-8 ani-show">
+                <FriendList title={t('friends.my_apply')} show={profile?.permission !== true && apply !== undefined} friends={apply ? [apply] : []} />
+                {profile && (profile.permission || config.get("friend_apply_enable")) &&
+                    <div className="wauto t-primary flex text-start text-2xl font-bold mt-8">
                         <div className="md:basis-1/2 bg-w rounded-xl p-4">
                             <p>
                                 {profile.permission ? t('friends.create') : t('friends.apply')}
@@ -112,7 +117,7 @@ export function FriendsPage() {
                                 <Input value={avatar} setValue={setAvatar} placeholder={t('avatar.url')} className="mt-2" />
                                 <Input value={url} setValue={setUrl} placeholder={t('url')} className="my-2" />
                                 <div className='flex flex-row justify-center'>
-                                    <button onClick={publishButton} className='basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light'>{t('create')}</button>
+                                    <button onClick={publishButton} className='basis-1/2 bg-theme text-white py-4 rounded-full shadow-xl shadow-light'>{t('create.title')}</button>
                                 </div>
                             </div>
                         </div>
@@ -120,6 +125,7 @@ export function FriendsPage() {
                 }
             </main>
         </Waiting>
+        <AlertUI />
     </>)
 }
 
@@ -151,21 +157,29 @@ function Friend({ friend }: { friend: FriendItem }) {
     const [url, setUrl] = useState(friend.url)
     const [status, setStatus] = useState(friend.accepted)
     const [modalIsOpen, setIsOpen] = useState(false);
-    function deleteFriend() {
-        if (confirm(t('delete.confirm'))) {
-            client.friend({ id: friend.id }).delete(friend.id, {
-                headers: headersWithAuth()
-            }).then(({ error }) => {
-                if (error) {
-                    alert(error.value)
-                } else {
-                    alert(t('delete.success'))
-                    window.location.reload()
-                }
+    const { showConfirm, ConfirmUI } = useConfirm()
+    const { showAlert, AlertUI } = useAlert()
+
+    const deleteFriend = useCallback(() => {
+        showConfirm(
+            t('delete.title'),
+            t('delete.confirm'),
+            () => {
+                client.friend({ id: friend.id }).delete(friend.id, {
+                    headers: headersWithAuth()
+                }).then(({ error }) => {
+                    if (error) {
+                        showAlert(error.value as string)
+                    } else {
+                        showAlert(t('delete.success'), () => {
+                            window.location.reload()
+                        })
+                    }
+                })
             })
-        }
-    }
-    function updateFriend() {
+    }, [friend.id])
+
+    const updateFriend = useCallback(() => {
         client.friend({ id: friend.id }).put({
             avatar,
             name,
@@ -176,13 +190,14 @@ function Friend({ friend }: { friend: FriendItem }) {
             headers: headersWithAuth()
         }).then(({ error }) => {
             if (error) {
-                alert(error.value)
+                showAlert(error.value as string)
             } else {
-                alert(t('update.success'))
-                window.location.reload()
+                showAlert(t('update.success'), () => {
+                    window.location.reload()
+                })
             }
         })
-    }
+    }, [avatar, name, desc, url, status])
 
     const statusOption = [
         { value: -1, label: t('friends.review.rejected') },
@@ -191,19 +206,19 @@ function Friend({ friend }: { friend: FriendItem }) {
     ]
     return (
         <>
-            <div title={friend.health} onClick={(e) => { console.log(e); window.open(friend.url) }} className="bg-hover w-full bg-w rounded-xl p-4 flex flex-col justify-center items-center relative ani-show">
+            <a title={friend.name} href={friend.url} target="_blank" className="bg-button w-full bg-w rounded-xl p-4 flex flex-col justify-center items-center relative">
                 <div className="w-16 h-16">
-                    <img className={"rounded-xl " + (friend.health.length > 0 ? "grayscale" : "")} src={friend.avatar} alt={friend.name} />
+                    <img className={"rounded-full " + (friend.health.length > 0 ? "grayscale" : "")} src={friend.avatar} alt={friend.name} />
                 </div>
                 <p className="text-base text-center">{friend.name}</p>
                 {friend.health.length == 0 && <p className="text-sm text-neutral-500 text-center">{friend.desc}</p>}
-                {friend.accepted != 1 && <p className={`${friend.accepted === 0 ? "t-primary" : "text-theme"}`}>{statusOption[friend.accepted + 1].label}</p>}
+                {friend.accepted !== 1 && <p className={`${friend.accepted === 0 ? "t-primary" : "text-theme"}`}>{statusOption[friend.accepted + 1].label}</p>}
                 {friend.health.length > 0 && <p className="text-sm text-gray-500 text-center">{errorHumanize(friend.health)}</p>}
                 {(profile?.permission || profile?.id === friend.uid) && <>
-                    <button onClick={(e) => { e.stopPropagation(); setIsOpen(true) }} className="absolute top-0 right-0 m-2 px-2 py-1 bg-secondary t-primary rounded-full bg-hover">
+                    <button onClick={(e) => { e.preventDefault(); setIsOpen(true) }} className="absolute top-0 right-0 m-2 px-2 py-1 bg-secondary t-primary rounded-full bg-button">
                         <i className="ri-settings-line"></i>
                     </button></>}
-            </div >
+            </a>
 
             <Modal
                 isOpen={modalIsOpen}
@@ -249,7 +264,7 @@ function Friend({ friend }: { friend: FriendItem }) {
                                     <Select options={statusOption} required defaultValue={statusOption[friend.accepted + 1]}
                                         onChange={(newValue, _) => {
                                             const value = newValue?.value
-                                            if (value != undefined) {
+                                            if (value !== undefined) {
                                                 setStatus(value)
                                             }
                                         }}
@@ -263,11 +278,13 @@ function Friend({ friend }: { friend: FriendItem }) {
                     <Input value={avatar} setValue={setAvatar} placeholder={t('avatar.url')} className="mt-2" />
                     <Input value={url} setValue={setUrl} placeholder={t('url')} className="my-2" />
                     <div className='flex flex-row justify-center space-x-2'>
-                        <button onClick={deleteFriend} className="bg-secondary text-theme rounded-full bg-hover px-4 py-2 mt-2">{t('delete.title')}</button>
-                        <button onClick={updateFriend} className="bg-secondary t-primary rounded-full bg-hover px-4 py-2 mt-2">{t('save')}</button>
+                        <button onClick={deleteFriend} className="bg-secondary text-theme rounded-full bg-button px-4 py-2 mt-2">{t('delete.title')}</button>
+                        <button onClick={updateFriend} className="bg-secondary t-primary rounded-full bg-button px-4 py-2 mt-2">{t('save')}</button>
                     </div>
                 </div >
             </Modal>
+            <ConfirmUI />
+            <AlertUI />
         </>
     )
 }
@@ -275,7 +292,7 @@ function Friend({ friend }: { friend: FriendItem }) {
 function errorHumanize(error: string) {
     if (error === "certificate has expired" || error == "526") {
         return "证书已过期"
-    } else if (error.includes("Unable to connect") || error == "521") {
+    } else if (error.includes("Unable to connect") || error == "521" || error == "522") {
         return "无法访问"
     }
     return error

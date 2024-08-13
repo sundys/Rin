@@ -1,15 +1,35 @@
 {
-  "about": "关于",
+  "about": {
+    "notfound": "将文章别名设置为 about 可以创建关于页面",
+    "title": "关于"
+  },
+  "alert": "提示",
   "alias": "别名",
   "article": {
     "delete": {
-      "confirm": "确定删除这篇文章吗？"
+      "confirm": "确定删除这篇文章吗？",
+      "title": "删除文章"
+    },
+    "search": {
+      "placeholder": "请输入关键字",
+      "title": "搜索",
+      "title$keyword": "搜索：{{keyword}}"
     },
     "title": "文章",
+    "top": {
+      "confirm": "确定置顶这篇文章吗？",
+      "success": "置顶成功",
+      "title": "置顶"
+    },
     "total_short$count_one": "{{count}} 篇",
     "total_short$count_other": "{{count}} 篇",
     "total$count_one": "共有 {{count}} 篇文章",
-    "total$count_other": "共有 {{count}} 篇文章"
+    "total$count_other": "共有 {{count}} 篇文章",
+    "untop": {
+      "confirm": "确定取消置顶这篇文章吗？",
+      "success": "取消置顶成功",
+      "title": "取消置顶"
+    }
   },
   "avatar": {
     "url": "头像 URL"
@@ -26,11 +46,19 @@
     "success": "评论成功",
     "title": "评论"
   },
+  "comparison": "对比",
   "confirm": "确认",
   "content": {
     "empty": "内容不能为空"
   },
-  "create": "创建",
+  "count": {
+    "pv": "浏览数",
+    "uv": "访客数"
+  },
+  "create": {
+    "success": "创建成功",
+    "title": "创建"
+  },
   "created_at": "发布时间",
   "delete": {
     "comment": {
@@ -44,10 +72,12 @@
   "description": "描述",
   "draft": "草稿",
   "draft_bin": "草稿箱",
-  "drop": {
-    "image": "图片拖拽到此上传"
-  },
   "edit": "编辑",
+  "error": {
+    "api_url": "Pages 环境变量中 API_URL 应为 Worker 地址，请检查 Pages 环境变量中 API_URL 是否正确",
+    "api_url_slash": "Pages 环境变量中 API_URL 应为 Worker 地址，请检查 Pages 环境变量中 API_URL 是否正确，且 API_URL 末尾不能有 /",
+    "github_callback": "GitHub OAuth 回调地址应为 `https://<Worker 地址>/user/github/callback，请检查 GitHub OAuth 回调地址是否正确"
+  },
   "feed_card": {
     "published$time": "{{time}} 发布",
     "updated$time": "{{time}} 更新"
@@ -61,13 +91,14 @@
     "left": "暂时离开",
     "my_apply": "我的申请",
     "review": {
-      "accepted": "接收",
+      "accepted": "接受",
       "rejected": "拒绝",
       "waiting": "待审核"
     },
     "title": "朋友们"
   },
   "github_login": "Github 登录",
+  "hashtags": "标签",
   "home": "首页",
   "index": {
     "back": "返回首页",
@@ -78,9 +109,16 @@
   },
   "listed": "列出在文章中",
   "login": {
-    "required": "需要登录"
+    "oauth_only": "请登录后继续",
+    "password": {
+      "placeholder": "请输入密码"
+    },
+    "required": "请登录后继续",
+    "title": "登录",
+    "username": {
+      "placeholder": "请输入用户名"
+    }
   },
-  "logout": "退出登录",
   "next": "下一页",
   "preview": "预览",
   "previous": "上一页",
@@ -102,6 +140,20 @@
       },
       "clear_failed$message": "清除缓存失败: {{message}}"
     },
+    "counter": {
+      "enable": {
+        "desc": "启用统计文章 PV 与 UV 功能",
+        "title": "启用访问量统计"
+      }
+    },
+    "favicon": {
+      "desc": "设置显示于浏览器的地址栏的图标（Favicon）",
+      "title": "网站图标"
+    },
+    "footer": {
+      "desc": "设置显示于站点底部的内容（HTML）",
+      "title": "站点底部内容"
+    },
     "friend": {
       "apply": {
         "desc": "允许其他用户申请友链（需审核）",
@@ -114,7 +166,8 @@
           "desc": "设置友链可访问性检查时使用的 User-Agent, 默认 'Rin-Check/1.0'",
           "title": "友链健康监测 User-Agent"
         }
-      }
+      },
+      "title": "友链设置"
     },
     "get_config_failed$message": "获取配置失败，{{message}}",
     "import_failed$message": "导入失败，{{message}}",
@@ -122,6 +175,9 @@
     "import_skipped": "跳过导入",
     "import_skipped_item$title$reason": "《{{title}}》- {{reason}}",
     "import_success$success$skipped": "导入成功，{{success}} 篇文章导入成功，{{skipped}} 篇文章跳过",
+    "other": {
+      "title": "其他设置"
+    },
     "rss": {
       "desc": "启用站点底部 RSS 订阅链接",
       "title": "RSS 订阅链接"
@@ -140,8 +196,14 @@
   "timeline": "时间轴",
   "title": "标题",
   "title_empty": "标题不能为空",
+  "top": {
+    "title": "置顶"
+  },
   "unlisted": "未列出",
   "untitled": "未列出",
+  "untop": {
+    "title": "取消置顶"
+  },
   "update": {
     "success": "更新成功",
     "title": "更新"
