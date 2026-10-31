@@ -5,11 +5,14 @@ type ConfigReader = {
 };
 
 // AI Provider presets with their default API URLs
+// Providers not listed here (e.g. "openai-compatible" for new-api / One API relays)
+// must always supply an explicit api_url.
 const AI_PROVIDER_URLS: Record<string, string> = {
     openai: "https://api.openai.com/v1",
     claude: "https://api.anthropic.com/v1",
     gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
     deepseek: "https://api.deepseek.com/v1",
+    zhipu: "https://open.bigmodel.cn/api/paas/v4",
 };
 
 // Cloudflare Worker AI models mapping (short name -> full model ID)
@@ -311,11 +314,21 @@ function processAIError(
         errorMessage = 'Rate limit exceeded';
         errorDetails = 'Too many requests. Please wait a moment.';
     } else if (originalMessage.includes('404')) {
-        errorMessage = 'Model not found';
-        errorDetails = `Model "${model}" not found for provider "${provider}".`;
+        // 404 既可能是模型 ID 写错，也可能是 API URL 路径不对（常见于缺少 /v1），
+        // 中转站（new-api / One API）还会把上游的 404 原样透传，所以两种原因都要提示。
+        errorMessage = 'API endpoint or model not found (HTTP 404)';
+        errorDetails = `请确认 API URL 已填到 /v1 结尾且模型 ID 与中转站一致。Model "${model}", provider "${provider}".`;
     } else if (originalMessage.includes('500') || originalMessage.includes('503')) {
         errorMessage = 'AI service temporarily unavailable';
         errorDetails = 'Service is experiencing issues. Please try again later.';
+    } else if (originalMessage.includes('400')) {
+        // 部分 OpenAI 兼容服务只接受 max_completion_tokens，或拒绝 temperature 等参数
+        errorMessage = 'AI service rejected the request (HTTP 400)';
+        errorDetails = '该接口可能不支持 max_tokens / temperature 参数，或模型 ID 不被接受。';
+    } else if (/API error [45]\d\d/.test(originalMessage)) {
+        // 其余 4xx/5xx 保留原始状态码，避免中转站透传的错误被误判成模型问题
+        errorMessage = 'AI service returned an error';
+        errorDetails = `Model "${model}", provider "${provider}".`;
     } else if (originalMessage.includes('Invalid')) {
         errorMessage = `AI model error: ${originalMessage}`;
         errorDetails = `Model "${model}" may not be supported. Please verify the model ID.`;

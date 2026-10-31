@@ -31,6 +31,7 @@ const AI_PROVIDER_DEFAULT_URLS: Record<string, string> = {
   claude: "https://api.anthropic.com/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
   deepseek: "https://api.deepseek.com/v1",
+  zhipu: "https://open.bigmodel.cn/api/paas/v4",
 };
 
 function createItem(item: HealthCheckItem): HealthCheckItem {

@@ -47,11 +47,15 @@ export function AISummarySettings({
   const handleProviderChange = (nextProvider: string) => {
     const preset = getAIProviderPreset(nextProvider);
     const models = AI_MODEL_PRESETS[nextProvider] || [];
+    // 切换供应商时若新供应商没有默认 URL（如 openai-compatible），保留用户已填写的地址，
+    // 否则会把中转站地址清空，导致测试时报 "API URL not configured"。
+    const nextApiUrl = preset?.url || value.apiUrl || "";
+    const nextModel = models[0] ?? value.model;
 
     onChange({
       provider: nextProvider,
-      apiUrl: preset?.url ?? "",
-      model: models[0] ?? value.model,
+      apiUrl: nextApiUrl,
+      model: nextModel,
     });
   };
 

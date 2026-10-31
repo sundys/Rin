@@ -36,4 +36,19 @@ describe("buildExternalAIChatCompletionsUrl", () => {
             "https://api.openai.com/v1/chat/completions",
         );
     });
+
+    it("falls back to the zhipu preset when api URL is empty", () => {
+        expect(buildExternalAIChatCompletionsUrl("zhipu", "")).toBe(
+            "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        );
+    });
+
+    it("requires an explicit api URL for openai-compatible relays", () => {
+        expect(() => buildExternalAIChatCompletionsUrl("openai-compatible", "")).toThrow(
+            "API URL not configured",
+        );
+        expect(buildExternalAIChatCompletionsUrl("openai-compatible", "https://relay.example.com/v1")).toBe(
+            "https://relay.example.com/v1/chat/completions",
+        );
+    });
 });
