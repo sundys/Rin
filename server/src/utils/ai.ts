@@ -142,7 +142,7 @@ async function executeExternalAI(
 
     if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API error ${response.status}: ${errorText}`);
+        throw new Error(`API error ${response.status} at ${finalApiUrl}: ${errorText}`);
     }
 
     const data = await response.json() as any;
