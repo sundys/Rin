@@ -214,7 +214,7 @@ export function ConfigService(): Hono {
             return c.text('URL does not belong to the configured storage host', 400);
         }
 
-        const response = await wrapTime(c, 'storage_proxy_fetch', () => getStorageObject(c.get('env'), storageKey));
+        const response = await profileAsync(c, 'storage_proxy_fetch', () => getStorageObject(c.get('env'), storageKey));
         if (!response) {
             return c.text('Not found', 404);
         }
