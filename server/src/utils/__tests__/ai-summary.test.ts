@@ -112,4 +112,33 @@ describe("generateAISummaryResult", () => {
       content: "external content",
     });
   });
+
+  it("sends an explicit User-Agent so nginx-fronted relays do not answer with a bare 404", async () => {
+    const serverConfig = createAIConfigReader({
+      enabled: true,
+      provider: "openai-compatible",
+      model: "GLM-5.2-HS",
+      api_key: "secret",
+      api_url: "https://relay.example.com/v1",
+    });
+
+    const requests: Array<any> = [];
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(init);
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "hi" } }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const { generateAISummaryResult } = await import("../ai");
+    await generateAISummaryResult({} as Env, serverConfig, "external content");
+
+    expect(requests).toHaveLength(1);
+    const headers = requests[0].headers as Record<string, string>;
+    expect(headers["User-Agent"]).toBeTruthy();
+    expect(headers["Authorization"]).toBe("Bearer secret");
+  });
 });

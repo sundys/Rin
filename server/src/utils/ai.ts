@@ -131,6 +131,11 @@ async function executeExternalAI(
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${api_key}`,
+            // Cloudflare Workers' fetch() sends no User-Agent by default. Several
+            // OpenAI-compatible relays (new-api / One API behind nginx) answer
+            // UA-less requests with a plain nginx 404 before routing them, which
+            // looks like "model not found". Always send an explicit UA.
+            "User-Agent": "Rin/0.3 (+https://github.com/openRin/Rin)",
         },
         body: JSON.stringify({
             model: model,
