@@ -23,6 +23,7 @@ export function CompatTasksPage() {
   });
   const [runningTask, setRunningTask] = useState<"ai-summary" | "blurhash" | null>(null);
   const [blurhashProgress, setBlurhashProgress] = useState({ total: 0, processed: 0, updated: 0, failed: 0 });
+  const [blurhashFailures, setBlurhashFailures] = useState<string[]>([]);
   const { showAlert, AlertUI } = useAlert();
 
   const loadStatus = () => {
@@ -66,6 +67,7 @@ export function CompatTasksPage() {
   const runBlurhashBackfill = async () => {
     setRunningTask("blurhash");
     setBlurhashProgress({ total: 0, processed: 0, updated: 0, failed: 0 });
+    setBlurhashFailures([]);
 
     try {
       const { data, error } = await client.config.getCompatBlurhashCandidates();
@@ -80,6 +82,7 @@ export function CompatTasksPage() {
       let processed = 0;
       let updated = 0;
       let failed = 0;
+      const failures: string[] = [];
 
       for (const item of items) {
         try {
@@ -88,19 +91,25 @@ export function CompatTasksPage() {
             const response = await client.config.applyCompatBlurhash(item.id, result.content);
             if (response.error) {
               failed += 1;
+              failures.push(`#${item.id}: ${response.error.value}`);
             } else {
               updated += 1;
             }
           }
-          failed += result.failed > 0 ? 1 : 0;
-        } catch {
+          if (result.failed > 0) {
+            failed += 1;
+            failures.push(`#${item.id}: ${result.errors.slice(0, 2).join(" | ")}`);
+          }
+        } catch (error) {
           failed += 1;
+          failures.push(`#${item.id}: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
           processed += 1;
           setBlurhashProgress({ total: items.length, processed, updated, failed });
         }
       }
 
+      setBlurhashFailures(failures);
       showAlert(t("compat_tasks.blurhash.result", { updated, failed, total: items.length }));
       loadStatus();
     } finally {
@@ -184,6 +193,16 @@ export function CompatTasksPage() {
                       failed: blurhashProgress.failed,
                     })}
                   </p>
+                ) : null}
+                {blurhashFailures.length > 0 ? (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
+                    <p className="font-semibold">{t("compat_tasks.blurhash.failures")}</p>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      {blurhashFailures.slice(0, 10).map((failure, index) => (
+                        <li key={index} className="break-all">{failure}</li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
                 <Button
                   title={runningTask === "blurhash" ? t("compat_tasks.running") : t("compat_tasks.blurhash.run")}

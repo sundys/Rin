@@ -5,6 +5,7 @@ import { adminOnly } from "../core/route-boundaries";
 import { setAIConfig, getAIConfig } from "../utils/db-config";
 import { testAIModel } from "../utils/ai";
 import { notify } from "../utils/webhook";
+import { getStorageObject, resolveStorageKeyFromPublicUrl } from "../utils/storage";
 import {
     buildCombinedConfigResponse,
     buildClientConfigResponse,
@@ -193,6 +194,41 @@ export function ConfigService(): Hono {
             const status = message === 'Feed not found' ? 404 : 400;
             return c.text(message, status);
         }
+    }));
+
+    // GET /config/storage-proxy?url=... - Same-origin passthrough for storage objects
+    //
+    // 后台「补齐图片 Blurhash」需要把图片画进 canvas 再读取像素，浏览器要求跨域图片
+    // 必须带 Access-Control-Allow-Origin 才能这样做。图片通常放在 S3_ACCESS_HOST
+    // 这类独立域名上（R2 公共域名默认不带 CORS 头），画到 canvas 会被污染，
+    // getImageData 直接抛 SecurityError。这里提供一个同源代理：只允许读取本 Worker
+    // 自己存储桶里的对象，因此不会变成任意 URL 的开放代理。
+    app.get('/storage-proxy', adminOnly(async (c: AppContext) => {
+        const rawUrl = c.req.query('url');
+        if (!rawUrl) {
+            return c.text('url is required', 400);
+        }
+
+        const storageKey = resolveStorageKeyFromPublicUrl(c.get('env'), rawUrl);
+        if (!storageKey) {
+            return c.text('URL does not belong to the configured storage host', 400);
+        }
+
+        const response = await wrapTime(c, 'storage_proxy_fetch', () => getStorageObject(c.get('env'), storageKey));
+        if (!response) {
+            return c.text('Not found', 404);
+        }
+
+        const headers = new Headers(response.headers);
+        headers.set('Access-Control-Allow-Origin', '*');
+        if (!headers.has('Cache-Control')) {
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+
+        return new Response(response.body, {
+            status: response.status,
+            headers,
+        });
     }));
 
     app.post('/queue-status/:id/retry', adminOnly(async (c: AppContext) => {

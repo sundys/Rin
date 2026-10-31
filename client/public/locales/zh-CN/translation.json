@@ -38,6 +38,7 @@
       "note": "该任务在当前浏览器中执行，会逐篇加载图片并回写元数据。",
       "run": "开始补齐",
       "progress": "已处理 {{processed}} / {{total}}，更新 {{updated}} 篇，失败 {{failed}} 篇。",
+      "failures": "失败原因",
       "result": "Blurhash 补齐完成：共扫描 {{total}} 篇，成功更新 {{updated}} 篇，失败 {{failed}} 篇。"
     }
   },

@@ -38,6 +38,7 @@
       "note": "このタスクは現在のブラウザ内で実行され、記事ごとに画像を処理します。",
       "run": "補完を開始",
       "progress": "{{processed}} / {{total}} 件処理済み、更新 {{updated}} 件、失敗 {{failed}} 件。",
+      "failures": "失敗の詳細",
       "result": "Blurhash 補完が完了しました。全 {{total}} 件を走査し、{{updated}} 件を更新、{{failed}} 件が失敗しました。"
     }
   },

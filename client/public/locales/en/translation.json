@@ -38,6 +38,7 @@
       "note": "This task runs in the current browser and processes images one post at a time.",
       "run": "Start backfill",
       "progress": "Processed {{processed}} / {{total}}, updated {{updated}} posts, failed {{failed}} posts.",
+      "failures": "Failure details",
       "result": "Blurhash backfill finished: scanned {{total}} posts, updated {{updated}}, failed {{failed}}."
     }
   },

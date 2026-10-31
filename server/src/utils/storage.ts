@@ -72,6 +72,59 @@ function buildBlobUrl(storageKey: string, baseUrl?: string) {
   return `${trimTrailingSlash(baseUrl)}${path}`;
 }
 
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * 把公开访问地址反解成存储 key，只接受本站配置的存储域名。
+ *
+ * 支持三种形式：
+ * - `${S3_ACCESS_HOST}/images/a.png`
+ * - `${S3_ENDPOINT}/${S3_BUCKET}/images/a.png`（S3 直连地址）
+ * - 同源的 `/api/blob/images/a.png`
+ *
+ * 任何不属于上述前缀的地址一律返回 null，避免代理接口被拿来做任意 URL 转发。
+ */
+export function resolveStorageKeyFromPublicUrl(env: Env, rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    // 相对路径（如 ./images/a.png）本来就和页面同源，不需要经过代理
+    return null;
+  }
+
+  const prefixes: string[] = [];
+  if (env.S3_ACCESS_HOST) {
+    prefixes.push(trimTrailingSlash(env.S3_ACCESS_HOST));
+  }
+  if (env.S3_ENDPOINT && env.S3_BUCKET) {
+    prefixes.push(`${trimTrailingSlash(env.S3_ENDPOINT)}/${env.S3_BUCKET}`);
+  }
+  // 同源 blob 路由：请求域名不确定（自定义域名 / workers.dev），按请求自身的 origin 匹配
+  prefixes.push(`${parsed.origin}/api/blob`);
+
+  const absolute = `${parsed.origin}${parsed.pathname}`;
+
+  for (const prefix of prefixes) {
+    if (!absolute.startsWith(`${prefix}/`)) {
+      continue;
+    }
+    const rest = absolute.slice(prefix.length).replace(/^\/+/, "");
+    const key = safeDecode(rest);
+    if (key.length > 0) {
+      return key;
+    }
+  }
+
+  return null;
+}
+
 function createStorageResponse(object: R2ObjectBody | R2Object, body?: BodyInit | null) {
   const headers = new Headers();
   object.writeHttpMetadata(headers);

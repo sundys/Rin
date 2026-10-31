@@ -38,6 +38,7 @@
       "note": "此任務會在目前瀏覽器中執行，逐篇載入圖片並回寫中繼資料。",
       "run": "開始補齊",
       "progress": "已處理 {{processed}} / {{total}}，更新 {{updated}} 篇，失敗 {{failed}} 篇。",
+      "failures": "失敗原因",
       "result": "Blurhash 補齊完成：共掃描 {{total}} 篇，成功更新 {{updated}} 篇，失敗 {{failed}} 篇。"
     }
   },

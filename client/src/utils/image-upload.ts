@@ -20,6 +20,7 @@ type MarkdownImageMetadataResult = {
   content: string;
   updated: number;
   failed: number;
+  errors: string[];
 };
 
 export function isImageFile(file: File) {
@@ -110,6 +111,37 @@ async function loadImageFromUrl(url: string) {
   return image;
 }
 
+/**
+ * 同源图片代理地址。图片一般放在 S3_ACCESS_HOST 这类独立域名上，R2/S3 默认
+ * 不会返回 Access-Control-Allow-Origin；而生成 blurhash 必须把图片画进 canvas
+ * 再 getImageData，跨域图片会污染 canvas 并抛 SecurityError。改走 Worker 的
+ * 同源代理后既拿到了 CORS 头，也不会被浏览器的跨域限制挡住。
+ */
+export function buildStorageProxyUrl(src: string) {
+  return `/api/config/storage-proxy?url=${encodeURIComponent(src)}`;
+}
+
+function isSameOrigin(url: string) {
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+async function loadImageForMetadata(src: string) {
+  if (isSameOrigin(src)) {
+    return loadImageFromUrl(src);
+  }
+
+  try {
+    return await loadImageFromUrl(buildStorageProxyUrl(src));
+  } catch {
+    // 代理不可用时退回直连，至少让同源/已配置 CORS 的图片仍能生成元数据
+    return loadImageFromUrl(src);
+  }
+}
+
 export async function generateImageMetadata(file: File) {
   if (!isImageFile(file)) {
     return {};
@@ -147,7 +179,7 @@ export async function generateImageMetadataFromUrl(url: string): Promise<ImageMe
     return { blurhash, width, height };
   }
 
-  const image = await loadImageFromUrl(src);
+  const image = await loadImageForMetadata(src);
   const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
   if (!longestSide) {
     return {
@@ -201,12 +233,13 @@ export async function enrichMarkdownImageMetadata(content: string): Promise<Mark
   const matches = [...markdownMatches, ...htmlMatches];
 
   if (matches.length === 0) {
-    return { content, updated: 0, failed: 0 };
+    return { content, updated: 0, failed: 0, errors: [] };
   }
 
   let nextContent = content;
   let updated = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   for (const match of matches) {
     const { fullMatch, rawUrl } = match;
@@ -223,6 +256,7 @@ export async function enrichMarkdownImageMetadata(content: string): Promise<Mark
       const metadata = await generateImageMetadataFromUrl(rawUrl);
       if (!metadata.blurhash || !metadata.width || !metadata.height) {
         failed += 1;
+        errors.push(`${existing.src || rawUrl}: image loaded but metadata could not be generated`);
         continue;
       }
 
@@ -234,8 +268,10 @@ export async function enrichMarkdownImageMetadata(content: string): Promise<Mark
         nextContent = nextContent.replace(fullMatch, replacement);
         updated += 1;
       }
-    } catch {
+    } catch (error) {
       failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`${existing.src || rawUrl}: ${message}`);
     }
   }
 
@@ -243,6 +279,7 @@ export async function enrichMarkdownImageMetadata(content: string): Promise<Mark
     content: nextContent,
     updated,
     failed,
+    errors,
   };
 }
 
